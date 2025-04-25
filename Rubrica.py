@@ -112,17 +112,7 @@ class AppClienti(tk.Tk):
                     break
 
     def crea_widgets(self):
-        tk.Label(self, text="Nome:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
-        self.entry_nome = tk.Entry(self, width=40)
-        self.entry_nome.grid(row=0, column=1, padx=10, pady=5)
-
-        tk.Label(self, text="Indirizzo:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
-        self.entry_indirizzo = tk.Entry(self, width=40)
-        self.entry_indirizzo.grid(row=1, column=1, padx=10, pady=5)
-
-        btn_salva = tk.Button(self, text="Salva Cliente", command=self.salva_cliente)
-        btn_salva.grid(row=2, column=0, columnspan=2, pady=10)
-
+ 
         self.tree = ttk.Treeview(self, columns=("ID", "Nome", "Indirizzo"), show="headings", height=8)
         self.tree.heading("ID", text="ID")
         self.tree.heading("Nome", text="Nome")
@@ -152,12 +142,86 @@ class AppClienti(tk.Tk):
         self.entry_indirizzo_modifica = tk.Entry(info_frame, width=40)
         self.entry_indirizzo_modifica.grid(row=2, column=1, padx=5, sticky="w")
 
-        btn_aggiorna = tk.Button(info_frame, text="Aggiorna Cliente", command=self.aggiorna_cliente)
-        btn_aggiorna.grid(row=3, column=0, columnspan=2, pady=10)
+        # Nuovo, Salva, Modifica, Elimina
+        self.btn_nuovo = tk.Button(info_frame, text="Nuovo", command=self.nuovo_cliente)
+        self.btn_nuovo.grid(row=3, column=0, pady=5)
+
+        self.btn_salva = tk.Button(info_frame, text="Salva", command=self.salva_cliente, state="disabled")
+        self.btn_salva.grid(row=3, column=1, pady=5)
+
+        self.btn_modifica = tk.Button(info_frame, text="Modifica", command=self.modifica_cliente)
+        self.btn_modifica.grid(row=4, column=0, pady=5)
+
+        self.btn_elimina = tk.Button(info_frame, text="Elimina", command=self.elimina_cliente)
+        self.btn_elimina.grid(row=4, column=1, pady=5)
+
+
+    def nuovo_cliente(self):
+        self.entry_nome_modifica.delete(0, tk.END)
+        self.entry_indirizzo_modifica.delete(0, tk.END)
+        self.lbl_id.config(text="")
+        self.btn_salva.config(state="normal")
+        self.modalita = "nuovo"
+        self.btn_nuovo.config(state="disabled")
+        self.btn_modifica.config(state="disabled")
+        self.btn_elimina.config(state="disabled")
+
+    def modifica_cliente(self):
+        if not self.db.cliente_corrente():
+            messagebox.showwarning("Attenzione", "Nessun cliente selezionato.")
+            return
+        self.modalita = "modifica"
+        self.btn_salva.config(state="normal")
+        self.btn_nuovo.config(state="disabled")
+        self.btn_modifica.config(state="disabled")
+        self.btn_elimina.config(state="disabled")
 
     def salva_cliente(self):
-        nome = self.entry_nome.get().strip()
-        indirizzo = self.entry_indirizzo.get().strip()
+        nome = self.entry_nome_modifica.get().strip()
+        indirizzo = self.entry_indirizzo_modifica.get().strip()
+
+        if not nome or not indirizzo:
+            messagebox.showwarning("Campi mancanti", "Inserisci sia nome che indirizzo.")
+            return
+
+        if self.modalita == "nuovo":
+            self.db.inserisci_cliente(nome, indirizzo)
+            messagebox.showinfo("Successo", "Cliente inserito.")
+        elif self.modalita == "modifica":
+            cliente = self.db.cliente_corrente()
+            if cliente:
+                self.db.aggiorna_cliente(cliente.id, nome, indirizzo)
+                messagebox.showinfo("Successo", "Cliente aggiornato.")
+        else:
+            return
+
+        self.aggiorna_lista_clienti()
+        self.mostra_cliente_corrente()
+        self.btn_salva.config(state="disabled")
+        self.btn_nuovo.config(state="normal")
+        self.btn_modifica.config(state="normal")
+        self.btn_elimina.config(state="normal")
+        self.modalita = None
+
+    def elimina_cliente(self):
+        cliente = self.db.cliente_corrente()
+        if not cliente:
+            messagebox.showwarning("Attenzione", "Nessun cliente selezionato.")
+            return
+        conferma = messagebox.askyesno("Conferma", "Eliminare questo cliente?")
+        if conferma:
+            try:
+                self.db.cursor.execute("DELETE FROM clienti WHERE id = ?", (cliente.id,))
+                self.db.conn.commit()
+                messagebox.showinfo("Successo", "Cliente eliminato.")
+                self.aggiorna_lista_clienti()
+                self.mostra_cliente_corrente()
+            except Exception as e:
+                messagebox.showerror("Errore", f"Errore durante l'eliminazione: {e}")
+
+    def carica_cliente(self):
+        nome = self.entry_nome_modifica.get().strip()
+        indirizzo = self.entry_indirizzo_modifica.get().strip()
 
         if not nome or not indirizzo:
             messagebox.showwarning("Campi mancanti", "Inserisci sia il nome che l'indirizzo.")
@@ -166,8 +230,8 @@ class AppClienti(tk.Tk):
         try:
             self.db.inserisci_cliente(nome, indirizzo)
             messagebox.showinfo("Successo", "Cliente salvato con successo.")
-            self.entry_nome.delete(0, tk.END)
-            self.entry_indirizzo.delete(0, tk.END)
+            self.entry_nome_modifica.delete(0, tk.END)
+            self.entry_indirizzo_modifica.delete(0, tk.END)
             self.aggiorna_lista_clienti()
         except Exception as e:
             messagebox.showerror("Errore", f"Errore durante il salvataggio: {e}")
@@ -220,10 +284,18 @@ class AppClienti(tk.Tk):
             self.entry_nome_modifica.insert(0, cliente.nome)
             self.entry_indirizzo_modifica.delete(0, tk.END)
             self.entry_indirizzo_modifica.insert(0, cliente.indirizzo)
+            self.btn_nuovo.config(state="normal")
+            self.btn_modifica.config(state="normal")
+            self.btn_elimina.config(state="normal")
         else:
             self.lbl_id.config(text="")
             self.entry_nome_modifica.delete(0, tk.END)
             self.entry_indirizzo_modifica.delete(0, tk.END)
+            self.btn_nuovo.config(state="normal")
+            self.btn_modifica.config(state="disabled")
+            self.btn_elimina.config(state="disabled")
+            self.btn_salva.config(state="disabled")
+
 
     def primo(self):
         self.db.primo()
