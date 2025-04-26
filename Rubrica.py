@@ -117,9 +117,16 @@ class AppClienti(tk.Tk):
         self.tree.heading("ID", text="ID")
         self.tree.heading("Nome", text="Nome")
         self.tree.heading("Indirizzo", text="Indirizzo")
+
+        # Imposta larghezza delle colonne
+        self.tree.column("ID", width=15, anchor='center')         # ID: 15 pixel
+        self.tree.column("Nome", width=100, anchor='w')            # Nome: 100 pixel
+        self.tree.column("Indirizzo", width=200, anchor='w')       # Indirizzo: 200 pixel
+
         self.tree.grid(row=3, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", self.seleziona_record)
-
+        
+        
         nav_frame = tk.Frame(self)
         nav_frame.grid(row=4, column=0, columnspan=2, pady=5)
         tk.Button(nav_frame, text="⏮ Primo", command=self.primo).pack(side=tk.LEFT, padx=5)
@@ -167,14 +174,17 @@ class AppClienti(tk.Tk):
         self.btn_elimina.config(state="disabled")
 
     def modifica_cliente(self):
-        if not self.db.cliente_corrente():
+        cliente = self.db.cliente_corrente()
+        if not cliente:
             messagebox.showwarning("Attenzione", "Nessun cliente selezionato.")
             return
         self.modalita = "modifica"
+        self.id_cliente_in_modifica = cliente.id  # <-- memorizzo l'ID
         self.btn_salva.config(state="normal")
         self.btn_nuovo.config(state="disabled")
         self.btn_modifica.config(state="disabled")
         self.btn_elimina.config(state="disabled")
+
 
     def salva_cliente(self):
         nome = self.entry_nome_modifica.get().strip()
@@ -188,20 +198,31 @@ class AppClienti(tk.Tk):
             self.db.inserisci_cliente(nome, indirizzo)
             messagebox.showinfo("Successo", "Cliente inserito.")
         elif self.modalita == "modifica":
-            cliente = self.db.cliente_corrente()
-            if cliente:
-                self.db.aggiorna_cliente(cliente.id, nome, indirizzo)
+            if self.id_cliente_in_modifica is not None:
+                self.db.aggiorna_cliente(self.id_cliente_in_modifica, nome, indirizzo)
                 messagebox.showinfo("Successo", "Cliente aggiornato.")
+            else:
+                messagebox.showwarning("Errore", "ID cliente non disponibile per la modifica.")
+                return
         else:
             return
 
         self.aggiorna_lista_clienti()
+
+        # --- Dopo aver aggiornato ricerchiamo il record modificato
+        if self.modalita == "modifica" and self.id_cliente_in_modifica is not None:
+            for i, cliente in enumerate(self.db.clienti):
+                if cliente.id == self.id_cliente_in_modifica:
+                    self.db.posizione_corrente = i
+                    break
+
         self.mostra_cliente_corrente()
         self.btn_salva.config(state="disabled")
         self.btn_nuovo.config(state="normal")
         self.btn_modifica.config(state="normal")
         self.btn_elimina.config(state="normal")
         self.modalita = None
+        self.id_cliente_in_modifica = None  # <-- Resetto l'ID
 
     def elimina_cliente(self):
         cliente = self.db.cliente_corrente()
