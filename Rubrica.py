@@ -3,13 +3,28 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from collections import namedtuple
 
-class FirebirdClientiManager:
+# ===== Base Manager =====
+class FirebirdManagerBase:
     def __init__(self, host, remote_path, user='SYSDBA', password='masterkey'):
         self.db_path = f'{host}:{remote_path}'
         self.user = user
         self.password = password
         self.conn = None
         self.cursor = None
+
+    def connetti(self):
+        self.conn = connect(database=self.db_path, user=self.user, password=self.password)
+        self.cursor = self.conn.cursor()
+
+    def chiudi(self):
+        if self.cursor:
+            self.cursor.close()
+        if self.conn:
+            self.conn.close()
+
+class FirebirdClientiManager(FirebirdManagerBase):
+    def __init__(self, host, remote_path, user='SYSDBA', password='masterkey'):
+        super().__init__(host, remote_path, user, password)
         self.clienti = []
         self.posizione_corrente = 0
 
@@ -338,6 +353,37 @@ class AppClienti(tk.Tk):
         self.mostra_cliente_corrente()
         self.seleziona_nella_treeview()
 
+# ===== Main Window =====
+class MainWindow(tk.Tk):
+    def __init__(self, db_clienti, db_fornitori):
+        super().__init__()
+        self.title("Gestione Firebird")
+        self.geometry("300x200")
+        self.db_clienti = db_clienti
+        self.db_fornitori = db_fornitori
+        self.clienti_win = None
+        self.fornitori_win = None
+        self.crea_menu()
+
+    def crea_menu(self):
+        menubar = tk.Menu(self)
+        clienti_menu = tk.Menu(menubar, tearoff=0)
+        clienti_menu.add_command(label="Gestione Clienti", command=self.open_clienti)
+        menubar.add_cascade(label="Clienti", menu=clienti_menu)
+        #fornitori_menu = tk.Menu(menubar, tearoff=0)
+        #fornitori_menu.add_command(label="Gestione Fornitori", command=self.open_fornitori)
+        #menubar.add_cascade(label="Fornitori", menu=fornitori_menu)
+        self.config(menu=menubar)
+
+    def open_clienti(self):
+        if not self.clienti_win or not self.clienti_win.winfo_exists():
+            self.withdraw()
+            self.clienti_win = AppClienti(self, self.db_clienti)
+        else:
+            self.clienti_win.lift()
+
+   
+
 
 if __name__ == '__main__':
     host = '192.168.1.202'
@@ -347,6 +393,8 @@ if __name__ == '__main__':
     try:
         db.connetti()
         db.crea_tabella_se_necessario()
+
+        
         app = AppClienti(db)
         app.mainloop()
     finally:
